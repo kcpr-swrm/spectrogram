@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "author": "kcpr",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "prod": "webpack --mode=production",
+    "dev": "webpack --mode=development",
+    "serve": "webpack serve --mode=development"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
+    "babel-loader": "^10.1.1",
+    "gl-matrix": "^3.4.4",
+    "stats.js": "github:mrdoob/stats.js",
+    "webpack": "^5.105.4",
+    "webpack-cli": "^7.0.2",
+    "webpack-dev-server": "^5.2.3",
+    "webpack-glsl-minify": "^1.5.0"
+  }
+}
