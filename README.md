@@ -2,4 +2,5 @@
 - git clone
 - npm install
 - npm run prod
+
 and check the `dist` folder
