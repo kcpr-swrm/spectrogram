@@ -5,6 +5,7 @@ import { IntervalSamplingTrigger } from './samplingTriggers/intervalSamplingTrig
 class KaraokeWebIntegration {
 
     #analyserNode = null;
+    #analyserNodeDest = null;
     #notifyNode = null;
     #spectrogramRenderer = null;
     #canvasSpectrogram = null;
@@ -21,6 +22,7 @@ class KaraokeWebIntegration {
         this.#config = config;
         this.#useWakeLock = config.useWakeLock ?? true;
         this.#debug = config.debug ?? false;
+        this.#analyserNodeDest = config.analyserNodeDest ?? null;
 
         this.#analyserNode = analyserNode;
         analyserNode.fftSize = config.fftSize ?? 4096;
@@ -71,7 +73,9 @@ class KaraokeWebIntegration {
                         this.#notifyNode = notifyNode;
                         this.#analyserNode.disconnect();
                         this.#analyserNode.connect(notifyNode);
-                        notifyNode.connect(this.#analyserNode.context.destination);
+                        if (this.#analyserNodeDest) {
+                            notifyNode.connect(this.#analyserNodeDest);
+                        }
                         if (this.#debug) console.log('worklet connected');
                         if (isPlaying) {
                             this.#samplingTrigger?.startSamplingFreqData();
@@ -170,8 +174,10 @@ class KaraokeWebIntegration {
             this.#spectrogramRenderer = null;
             if (this.#analyserNode && this.#notifyNode) {
                 this.#analyserNode.disconnect(this.#notifyNode);
-                this.#analyserNode.connect(this.#analyserNode.context.destination);
                 this.#notifyNode.disconnect();
+                if (this.#analyserNodeDest) {
+                    this.#analyserNode.connect(this.#analyserNodeDest);
+                }
                 this.#notifyNode = null;
             }
         }
