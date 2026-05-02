@@ -15,7 +15,7 @@ class IntervalSamplingTrigger {
 
         if (this.#samplingTimer) {
             clearInterval(this.#samplingTimer);
-            console.log(`samplingTimer stopped (startSamplingFreqData): ${this.#samplingTimer}`)
+            // console.log(`samplingTimer stopped (startSamplingFreqData): ${this.#samplingTimer}`)
         }
 
         this.#samplingTimer = setInterval( () => {
@@ -24,14 +24,14 @@ class IntervalSamplingTrigger {
         , intervalMs);
 
         this.#samplingActive = true;
-        console.log(`notifyNode started (startSamplingFreqData): ${this.#samplingTimer}`)
+        // console.log(`notifyNode started (startSamplingFreqData): ${this.#samplingTimer}`)
     }
 
     stopSamplingFreqData() {
         if (this.#samplingTimer) {
             clearInterval(this.#samplingTimer);
 
-            console.log(`samplingTimer stopped (stopSamplingFreqData): ${this.#samplingTimer}`)
+            // console.log(`samplingTimer stopped (stopSamplingFreqData): ${this.#samplingTimer}`)
             this.#samplingTimer = null;
             this.#samplingActive = false;
         }
