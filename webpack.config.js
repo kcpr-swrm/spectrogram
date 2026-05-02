@@ -14,26 +14,11 @@ function pascalToKebab(s) {
 
 export default (env, argv) => {
 
-    return {
+    let config = {
         entry: {
-            Spectrogram: './src/karaokeWebIntegration.js',
-            SpectrogramRenderer: './src/spectrogramRenderer.js',
         },
-        devtool: 'source-map',
         target: 'web',
         output: {
-            path: path.resolve(__dirname, 'dist'),
-            filename: (pathData) => {
-                const name = pascalToKebab(pathData.chunk.name);
-                return argv.mode === 'production' ?
-                    `${name}.js` :
-                    `${name}.dev.js`;
-            },
-            library: {
-                name: "[name]",
-                type: "var",
-                export: "default",
-            },
         },
         optimization: {
             minimizer: [
@@ -53,6 +38,54 @@ export default (env, argv) => {
         },
         resolve: {
             extensions: ['.js'],
+        },
+    };
+
+    const worklets = Object.assign({}, config, {
+        name: 'worklets',
+        entry: {
+            'notifyAnalyserProcessor.worklet.js': './src/worklets/notifyAnalyserProcessor.worklet.js',
+            'notifyProcessor.worklet.js': './src/worklets/notifyProcessor.worklet.js',
+        },
+        output: {
+            path: path.resolve(__dirname, 'build/worklets'),
+            filename: (pathData) => {
+                const name = pathData.chunk.name;
+                return `${name}`;
+            },
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.js$/,
+                    exclude: /node_modules/,
+                    loader: 'babel-loader',
+                },
+            ],
+        },
+    });
+
+    const spectrogram = Object.assign({}, config, {
+        name: 'spectrogram',
+        dependencies: ['worklets'],
+        entry: {
+            SpectrogramRenderer: './src/spectrogramRenderer.js',
+            Spectrogram: './src/karaokeWebIntegration.js',
+        },
+        devtool: 'source-map',
+        output: {
+            path: path.resolve(__dirname, 'dist'),
+            filename: (pathData) => {
+                const name = pascalToKebab(pathData.chunk.name);
+                return argv.mode === 'production' ?
+                    `${name}.js` :
+                    `${name}.dev.js`;
+            },
+            library: {
+                name: "[name]",
+                type: "var",
+                export: "default",
+            },
         },
         devServer: {
             static: {
@@ -84,5 +117,7 @@ export default (env, argv) => {
                 },
             ],
         },
-    };
+    });
+
+    return [worklets, spectrogram];
 };

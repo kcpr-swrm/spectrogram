@@ -27,17 +27,15 @@ class NotifyProcessor extends AudioWorkletProcessor {
     process(inputs, outputs, params) {
         const sourceLimit = Math.min(inputs.length, outputs.length);
 
+        // pass through
         for (let inputNum = 0; inputNum < sourceLimit; ++inputNum) {
             const input = inputs[inputNum];
             const output = outputs[inputNum];
             const channelCount = Math.min(input.length, output.length);
 
             for (let channelNum = 0; channelNum < channelCount; ++channelNum) {
-
-                input[channelNum].forEach((sample, i) => {
-                    // pass through
-                    output[channelNum][i] = sample;
-                });
+                // copy data starting at index 0
+                output[channelNum].set(input[channelNum], 0);
             }
         }
         if (this.#started) {

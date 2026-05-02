@@ -1,16 +1,18 @@
 import { SpectrogramRenderer } from './spectrogramRenderer.js';
+import { WorkletAnalyserSampler } from './samplers/workletAnalyserSampler.js';
 import { WorkletSamplingTrigger } from './samplingTriggers/workletSamplingTrigger.js';
 import { IntervalSamplingTrigger } from './samplingTriggers/intervalSamplingTrigger.js';
 
 class KaraokeWebIntegration {
 
     #analyserNode = null;
-    #analyserNodeDest = null;
+    #audioSrcNode = null;
     #notifyNode = null;
     #spectrogramRenderer = null;
     #canvasSpectrogram = null;
     #samplingTrigger = null;
     #wakeLock = null;
+    #eventAbortController = null;
     #isPlaying = false;
 
     #config;
@@ -18,20 +20,21 @@ class KaraokeWebIntegration {
     #useWakeLock;
     #maxDevicePixelRatio = 1.5;
 
-    constructor(analyserNode, config = {}) {
+    constructor(audioSrcNode, config = {}) {
+        this.#audioSrcNode = audioSrcNode;
+
         this.#config = config;
         this.#useWakeLock = config.useWakeLock ?? true;
         this.#debug = config.debug ?? false;
-        this.#analyserNodeDest = config.analyserNodeDest ?? null;
 
-        this.#analyserNode = analyserNode;
-        analyserNode.fftSize = config.fftSize ?? 4096;
-        analyserNode.smoothingTimeConstant = config.smoothingTimeConstant ?? 0.0;
-        analyserNode.minDecibels = config.minDecibels ?? -80;
-        analyserNode.maxDecibels = config.maxDecibels ?? -32;
+        this.#eventAbortController = new AbortController();
+    }
 
+    #setupEvents() {
         window.addEventListener('beforeunload', () => {
             this.destroyVisualizer();
+        }, {
+            signal: this.#eventAbortController.signal
         });
 
         document.addEventListener("visibilitychange", () => {
@@ -49,33 +52,90 @@ class KaraokeWebIntegration {
                     });
                 }
             }
+        }, {
+            signal: this.#eventAbortController.signal
         });
 
+        const debounce = (func, delay) => {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        };
+
+        // needed to handle resizing and zooming properly
+        window.addEventListener('resize', debounce(() => {
+            this.#resize();
+        }, 250),
+        {
+            signal: this.#eventAbortController.signal
+        });
+    }
+
+    #resize() {
+        if (this.#canvasSpectrogram) {
+            const controlsHeight = document.querySelector('.fullscreen-controls-section')?.offsetHeight ?? 0;
+            this.#canvasSpectrogram.style.height = `calc(100% - ${controlsHeight}px)`;
+
+            const dpr = Math.min(window.devicePixelRatio || 1, this.#maxDevicePixelRatio);
+            this.#canvasSpectrogram.width = Math.round(this.#canvasSpectrogram.clientWidth * dpr);
+            this.#canvasSpectrogram.height = Math.round(this.#canvasSpectrogram.clientHeight * dpr);
+
+            if (this.#spectrogramRenderer) {
+                this.#spectrogramRenderer.resize(this.#canvasSpectrogram.clientWidth, this.#canvasSpectrogram.clientHeight, dpr);
+                if (!this.#isPlaying) {
+                    // if rendering is paused, render 1 frame to repaint the resized canvas
+                    this.#spectrogramRenderer.render();
+                }
+            }
+        }
     }
 
     initVisualizerAnalyser(isPlaying) {
         this.#isPlaying = isPlaying;
+
+        this.#setupEvents();
         this.setupCanvas(isPlaying);
 
 //        this.#canvasSpectrogram = this.#canvasSpectrogram.transferControlToOffscreen();
         this.#spectrogramRenderer = new SpectrogramRenderer(this.#canvasSpectrogram, this.#config);
-        this.#spectrogramRenderer.setAnalyserNode(this.#analyserNode);
 
-        switch (this.#config.samplingTrigger ?? 'worklet') {
+        switch (this.#config.samplingTrigger ?? 'workletAnalyser') {
             case 'interval':
+                this.#setupAnalyserNode();
                 this.#samplingTrigger = new IntervalSamplingTrigger(this.#spectrogramRenderer);
             break;
-            case 'worklet':
-                this.#samplingTrigger = new WorkletSamplingTrigger(this.#spectrogramRenderer);
+            case 'workletAnalyser':
+                // analyser node handled differently, workletAnalyser node provides its own analyser
+                const fftSize = this.#config.fftSize ?? 4096;
+                this.#spectrogramRenderer.hintFrequencyBinCount(fftSize / 2);
+                this.#samplingTrigger = new WorkletAnalyserSampler(this.#spectrogramRenderer);
 
-                this.#samplingTrigger.worklet(this.#analyserNode.context).then(
+                this.#samplingTrigger.worklet(this.#audioSrcNode.context, this.#config).then(
                     (notifyNode) => {
                         this.#notifyNode = notifyNode;
-                        this.#analyserNode.disconnect();
-                        this.#analyserNode.connect(notifyNode);
-                        if (this.#analyserNodeDest) {
-                            notifyNode.connect(this.#analyserNodeDest);
+                        this.#analyserNode = notifyNode;
+                        this.#spectrogramRenderer.setAnalyserNode(this.#analyserNode);
+                        this.#audioSrcNode.connect(notifyNode);
+                        if (this.#debug) console.log('worklet connected');
+                        if (isPlaying) {
+                            this.#samplingTrigger?.startSamplingFreqData();
+                            // this.startVisualizer();
                         }
+                    }
+                );
+            break;
+            case 'worklet':
+                this.#setupAnalyserNode();
+                this.#samplingTrigger = new WorkletSamplingTrigger(this.#spectrogramRenderer);
+
+                this.#samplingTrigger.worklet(this.#audioSrcNode.context).then(
+                    (notifyNode) => {
+                        this.#notifyNode = notifyNode;
+                        this.#analyserNode.connect(notifyNode);
                         if (this.#debug) console.log('worklet connected');
                         if (isPlaying) {
                             this.#samplingTrigger?.startSamplingFreqData();
@@ -86,8 +146,26 @@ class KaraokeWebIntegration {
             break;
             case 'renderer':
             default:
+                this.#setupAnalyserNode();
         }
+    }
 
+    #setupAnalyserNode() {
+        if (this.#audioSrcNode instanceof AnalyserNode) {
+            this.#analyserNode = this.#audioSrcNode;
+        } else {
+            this.#analyserNode = this.#audioSrcNode.context.createAnalyser();
+            this.#audioSrcNode.connect(this.#analyserNode);
+        }
+        const analyserNode = this.#analyserNode;
+        const config = this.#config;
+
+        analyserNode.fftSize = config.fftSize ?? 4096;
+        analyserNode.smoothingTimeConstant = config.smoothingTimeConstant ?? 0.0;
+        analyserNode.minDecibels = config.minDecibels ?? -80;
+        analyserNode.maxDecibels = config.maxDecibels ?? -32;
+
+        this.#spectrogramRenderer.setAnalyserNode(analyserNode);
     }
 
     setupCanvas(isPlaying) {
@@ -96,7 +174,8 @@ class KaraokeWebIntegration {
             this.#canvasSpectrogram = document.createElement('canvas');
             this.#canvasSpectrogram.id = "spectrogramCanvas";
 
-            this.#canvasSpectrogram.style.aspectRatio = '0.75';
+            this.#canvasSpectrogram.style.aspectRatio = '1';
+            this.#canvasSpectrogram.style.display = 'block';
 
             const divWrapper = document.createElement('div');
             divWrapper.style.position = 'relative';
@@ -130,21 +209,8 @@ class KaraokeWebIntegration {
             // hide the other canvas
             document.querySelector('.fullscreen-visualizer-canvas').style.display = 'none';
         }
-        const controlsHeight = document.querySelector('.fullscreen-controls-section')?.offsetHeight ?? 0;
-        this.#canvasSpectrogram.style.height = "calc(100% - " + controlsHeight + "px)";
-        this.#canvasSpectrogram.style.display = 'block';
 
-        const dpr = Math.min(window.devicePixelRatio || 1, this.#maxDevicePixelRatio);
-        this.#canvasSpectrogram.width = Math.round(this.#canvasSpectrogram.clientWidth * dpr);
-        this.#canvasSpectrogram.height = Math.round(this.#canvasSpectrogram.clientHeight * dpr);
-
-        if (this.#spectrogramRenderer) {
-            this.#spectrogramRenderer.resize(this.#canvasSpectrogram.clientWidth, this.#canvasSpectrogram.clientHeight, dpr);
-            if (!isPlaying) {
-                // if rendering is paused, render 1 frame to repaint the resized canvas
-                this.#spectrogramRenderer.render();
-            }
-        }
+        this.#resize();
 
         return true;
     }
@@ -172,15 +238,35 @@ class KaraokeWebIntegration {
             this.#samplingTrigger?.killSamplingFreqData();
             this.#samplingTrigger = null;
             this.#spectrogramRenderer = null;
+
             if (this.#analyserNode && this.#notifyNode) {
-                this.#analyserNode.disconnect(this.#notifyNode);
-                this.#notifyNode.disconnect();
-                if (this.#analyserNodeDest) {
-                    this.#analyserNode.connect(this.#analyserNodeDest);
+                if (this.#analyserNode !== this.#notifyNode) {
+                    try { this.#analyserNode.disconnect(this.#notifyNode); } catch (e) {
+                        if (this.#debug) console.error(e);
+                    }
+                } else {
+                    this.#analyserNode = null;
                 }
+                // disconnect shouldn't be needed, this is a leaf node
+                // but just in case
+                this.#notifyNode.disconnect();
                 this.#notifyNode = null;
             }
+
+            if (this.#analyserNode && this.#analyserNode !== this.#audioSrcNode) {
+                try { this.#audioSrcNode.disconnect(this.#analyserNode); } catch (e) {
+                    if (this.#debug) console.error(e);
+                }
+            }
+            this.#analyserNode = null;
+
+            this.#wakeLock?.release().then(() => {
+                this.#wakeLock = null;
+            });
         }
+
+        // cancel / unregister events
+        this.#eventAbortController.abort();
 
         this.#canvasSpectrogram.style.display = 'none';
         // remove the wrapping div

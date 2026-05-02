@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "kcpr",
   "type": "module",
   "sideEffects": false,
@@ -12,6 +12,7 @@
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
     "babel-loader": "^10.1.1",
+    "fourier-transform": "^2.2.0",
     "gl-matrix": "^3.4.4",
     "stats.js": "github:mrdoob/stats.js",
     "webpack": "^5.105.4",

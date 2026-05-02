@@ -64,13 +64,13 @@ class SpectrogramRenderer {
 
     constructor(canvas, config = {}) {
         this.#meshScaleZ = config.meshScaleZ ?? this.#meshSize * 0.16667;
-        this.#meshDensityX = config.meshDensityX ?? 8 * 128;
-        this.#meshDensityY = config.meshDensityY ?? 5 * 128;
+        this.#meshDensityX = config.meshDensityX ?? 7 * 128;
+        this.#meshDensityY = config.meshDensityY ?? 6 * 128;
         this.#freqTextureSize = config.freqTextureSize ?? 8 * 256;
         this.#freqScaleBase = config.freqScaleBase ?? 225.0;
 
         this.#useInstancing = config.useInstancing ?? true;
-        this.#useInterleavedAttribs = config.useInterleavedAttribs ?? false;
+        this.#useInterleavedAttribs = config.useInterleavedAttribs ?? true;
         this.#skipIndices = config.skipIndices ?? true;
         this.#antialias = config.antialias ?? false;
 
@@ -428,18 +428,18 @@ class SpectrogramRenderer {
         return this.#mvpMatrix;
     }
 
-    #reinitFreqBuffer() {
-        if (!this.#freqByteBuffer || this.#freqByteBuffer.length != this.#analyserNode.frequencyBinCount) {
+    #reinitFreqBuffer(frequencyBinCount = this.#analyserNode.frequencyBinCount) {
+        if (!this.#freqByteBuffer || this.#freqByteBuffer.length != frequencyBinCount) {
             const gl = this.#gl;
             const freqTextureSize = this.#freqTextureSize;
 
-            const freqByteBuffer = new Uint8Array(this.#analyserNode.frequencyBinCount);
+            const freqByteBuffer = new Uint8Array(frequencyBinCount);
             this.#freqByteBuffer = freqByteBuffer;
 
             if (this.#useRingBuffer) {
                 if (this.#debug) console.log('using ring buffer');
                 // 512 samples, each of frequencyBinCount size
-                this.#freqRingBuffer = new RingBuffer(512, this.#analyserNode.frequencyBinCount);
+                this.#freqRingBuffer = new RingBuffer(512, frequencyBinCount);
             }
 
             if (this.#freqTexture) {
@@ -460,7 +460,7 @@ class SpectrogramRenderer {
         }
     }
 
-    updateFrequencyData() {
+    updateFrequencyData(fftData = null) {
         const freqTextureSize = this.#freqTextureSize;
         const gl = this.#gl;
 
@@ -469,12 +469,22 @@ class SpectrogramRenderer {
 
         if (this.#useRingBuffer) {
             const sampleBuffer = this.#freqRingBuffer.getSampleForWriting();
-            this.#analyserNode.getByteFrequencyData(sampleBuffer);
+            if (fftData) {
+                // copy data starting at index 0
+                sampleBuffer.set(new Uint8Array(fftData), 0);
+            } else {
+                this.#analyserNode?.getByteFrequencyData(sampleBuffer);
+            }
         } else {
             this.#texOffsetT = (this.#texOffsetT + 1) % freqTextureSize;
 
             const freqByteBuffer = this.#freqByteBuffer;
-            this.#analyserNode.getByteFrequencyData(freqByteBuffer);
+            if (fftData) {
+                // copy data starting at index 0
+                freqByteBuffer.set(new Uint8Array(fftData), 0);
+            } else {
+                this.#analyserNode.getByteFrequencyData(freqByteBuffer);
+            }
             gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, this.#texOffsetT, freqByteBuffer.length, 1, gl.ALPHA, gl.UNSIGNED_BYTE, freqByteBuffer);
 
             if (this.#texOffsetT == 0) {
@@ -557,6 +567,9 @@ class SpectrogramRenderer {
     setAnalyserNode(analyserNode) {
         this.#analyserNode = analyserNode;
         this.#reinitFreqBuffer();
+    }
+    hintFrequencyBinCount(frequencyBinCount) {
+        this.#reinitFreqBuffer(frequencyBinCount);
     }
 
     setUpdateFreqDataOnRender(updateFreqDataOnRender) {

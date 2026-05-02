@@ -1,4 +1,4 @@
-import notifyWorkletSrc from '../worklets/notifyProcessor.worklet.js';
+import notifyWorkletSrc from '/build/worklets/notifyProcessor.worklet.js';
 
 class WorkletSamplingTrigger {
 
@@ -14,7 +14,7 @@ class WorkletSamplingTrigger {
         if (this.#notifyNode) {
             this.#samplingActive = true;
             this.#notifyNode?.port.postMessage('start');
-            console.log(`notifyNode started (startSamplingFreqData): ${this.#notifyNode}`)
+            // console.log(`notifyNode started (startSamplingFreqData): ${this.#notifyNode}`)
         }
     }
 
@@ -22,13 +22,13 @@ class WorkletSamplingTrigger {
         if (this.#notifyNode) {
             this.#samplingActive = false;
             this.#notifyNode?.port.postMessage('stop');
-            console.log(`notifyNode stopped (stopSamplingFreqData): ${this.#notifyNode}`)
+            // console.log(`notifyNode stopped (stopSamplingFreqData): ${this.#notifyNode}`)
         }
     }
 
     killSamplingFreqData() {
         if (this.#notifyNode) {
-            console.log(`notifyNode killed (killSamplingFreqData): ${this.#notifyNode}`)
+            // console.log(`notifyNode killed (killSamplingFreqData): ${this.#notifyNode}`)
             this.#notifyNode?.port.postMessage('kill');
             this.#notifyNode = null;
         }
@@ -42,7 +42,7 @@ class WorkletSamplingTrigger {
         const blobURL = URL.createObjectURL(blob);
         try {
             await audioContext.audioWorklet.addModule(blobURL);
-        } catch (e) {console.log(e);}
+        } catch (e) {console.error(e);}
         URL.revokeObjectURL(blobURL);
         if (this.#notifyNode) {
             this.#notifyNode.port.postMessage('stop');
