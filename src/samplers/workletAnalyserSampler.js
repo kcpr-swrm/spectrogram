@@ -70,7 +70,7 @@ class WorkletAnalyserSampler {
                 minDecibels: config.minDecibels ?? -80,
                 maxDecibels: config.maxDecibels ?? -32,
                 smoothingTimeConstant: config.smoothingTimeConstant ?? 0.0,
-                fftComputeEveryN: config.fftComputeEveryN ?? 2,
+                fftComputeEveryN: config.fftComputeEveryN ?? 1,
             },
         };
         this.#notifyAnalyserNode = new AnalyserAudioWorkletNode(audioContext, 'notify-analyser-processor', opts);

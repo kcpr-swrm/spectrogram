@@ -46,6 +46,10 @@ class NotifyAnalyserProcessor extends AudioWorkletProcessor {
             }
 
             this.#fftComputeEveryN = opts.processorOptions?.fftComputeEveryN ?? 1;
+            if (this.#fftComputeEveryN < 1 || !Number.isInteger(this.#fftComputeEveryN)) {
+                // throw new IndexSizeError('fftComputeEveryN must be a positive integer');
+                console.error('fftComputeEveryN must be a positive integer');
+            }
         }
 
         this.#allocBuffers(this.#fftSize);
