@@ -44,6 +44,9 @@ class WorkletAnalyserSampler {
         if (this.#notifyAnalyserNode) {
             // console.log(`notifyAnalyserNode killed (killSamplingFreqData): ${this.#notifyAnalyserNode}`)
             this.#notifyAnalyserNode?.port.postMessage('kill');
+            // this.#notifyAnalyserNode?.port.onmessage = null;
+            if (this.#notifyAnalyserNode) this.#notifyAnalyserNode.port.onmessage = null;
+            this.#notifyAnalyserNode?.port.close();
             this.#notifyAnalyserNode = null;
         }
         this.#spectrogramRenderer.setUpdateFreqDataOnRender(true);
@@ -61,6 +64,8 @@ class WorkletAnalyserSampler {
         if (this.#notifyAnalyserNode) {
             this.#notifyAnalyserNode.port.postMessage('stop');
             this.#notifyAnalyserNode.port.postMessage('kill');
+            this.#notifyAnalyserNode.port.onmessage = null;
+            this.#notifyAnalyserNode.port.close();
             this.#notifyAnalyserNode = null;
         }
 

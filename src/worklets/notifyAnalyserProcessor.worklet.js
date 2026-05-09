@@ -69,6 +69,11 @@ class NotifyAnalyserProcessor extends AudioWorkletProcessor {
                     case 'kill':
                         this.#started = false;
                         this.#alive = false;
+                        this.port.onmessage = null;
+                        this.port.close();
+                        // cleanup
+                        this.#freqDataBuffers.length = 0;
+                        this.#freeBuffers();
                     break;
                     default:
                 }
@@ -78,11 +83,18 @@ class NotifyAnalyserProcessor extends AudioWorkletProcessor {
     }
 
     #allocBuffers(n) {
-        this.#timeBuf = new Float32Array(n)
-        this.#prevSpectrum = new Float64Array(n / 2)
-        this.#spectrum = new Float64Array(n / 2)
-        this.#windowedBuf = new Float64Array(n)
-        this.#writePos = 0
+        this.#timeBuf = new Float32Array(n);
+        this.#prevSpectrum = new Float64Array(n / 2);
+        this.#spectrum = new Float64Array(n / 2);
+        this.#windowedBuf = new Float64Array(n);
+        this.#writePos = 0;
+    }
+
+    #freeBuffers() {
+        this.#timeBuf = null;
+        this.#prevSpectrum = null;
+        this.#spectrum = null;
+        this.#windowedBuf = null;
     }
 
     #computeSpectrum() {

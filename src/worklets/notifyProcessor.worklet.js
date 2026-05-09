@@ -17,6 +17,8 @@ class NotifyProcessor extends AudioWorkletProcessor {
                 case 'kill':
                     this.#started = false;
                     this.#alive = false;
+                    this.port.onmessage = null;
+                    this.port.close();
                 break;
                 default:
             }

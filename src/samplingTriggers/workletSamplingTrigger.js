@@ -30,6 +30,9 @@ class WorkletSamplingTrigger {
         if (this.#notifyNode) {
             // console.log(`notifyNode killed (killSamplingFreqData): ${this.#notifyNode}`)
             this.#notifyNode?.port.postMessage('kill');
+            // this.#notifyNode?.port.onmessage = null;
+            if (this.#notifyNode) this.#notifyNode.port.onmessage = null;
+            this.#notifyNode?.port.close();
             this.#notifyNode = null;
         }
         this.#spectrogramRenderer.setUpdateFreqDataOnRender(true);
@@ -47,6 +50,8 @@ class WorkletSamplingTrigger {
         if (this.#notifyNode) {
             this.#notifyNode.port.postMessage('stop');
             this.#notifyNode.port.postMessage('kill');
+            this.#notifyNode.port.onmessage = null;
+            this.#notifyNode.port.close();
             this.#notifyNode = null;
         }
         this.#notifyNode = new AudioWorkletNode(audioContext, 'notify-processor');
